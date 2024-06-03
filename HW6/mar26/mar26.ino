@@ -2,12 +2,12 @@
 #include <HTTPClient.h>
 #include <DHT11.h>
 
-const char* ssid = "cse_wifire";
-const char* password = "23698741";
+const char* ssid = "SSID";
+const char* password = "PASSWORD";
 #define DHTPIN 4 // Pin where the DHT11 is connected 
 #define DHTTYPE DHT11 // Type of the DHT sensor 
 DHT11 dht11(DHTPIN); // Replace these with your Firebase project credentials 
-const char *serverAddress = "http://192.168.1.127:5500/post_data";
+const char *serverAddress = "http://IP Address:Port Number/post_data";
 
 void setup() {
   Serial.begin(115200);
