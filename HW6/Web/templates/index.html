@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset = "UTF-8">
+    <title>IoT Project</title>
+    <link rel = "stylesheet" href = "/static/style.css">
+    <script src = "https://code.highcharts.com/highcharts.js"></script>
+</head>
+<body>
+    <!--背景圖片-->
+    <div class = "background"></div>
+
+    <!--標題-->
+    <p class = "title">Temperature &amp; Humidity Realtime Chart</p>
+    
+    <!--選擇顯示 Realtime 或 Interval-->
+    <div style = "display: flex; max-width: 360px; height: 40px; margin: 0 auto;">
+        <button onclick = "showDiv('Realtime')" class = "select-btn" style = "background-color: #b07ed2">Show Realtime</button>
+        <button onclick = "showDiv('Interval')" class = "select-btn" style = "background-color: #94b9de">Show Interval</button>
+    </div>
+
+    <!--圖表內容-->
+    <div class = "chart-background">
+        <!--Realtime Chart-->
+        <div id = "Realtime" class = "hide">
+            <div id = "realtimeChartContainer" class = "real-time"></div>
+        </div>
+
+        <!--Interval Chart-->
+        <div id = "Interval" class = "hide">
+            <div style = "margin-top: 20px;margin-bottom: 20px;">
+                <select id = "timeRangeSelector"></select>
+                <button id = "updateChart">Update Chart</button>
+            </div>
+            <div id = "intervalChartContainer" class = "select-interval"></div>
+        </div>
+    </div>
+    
+    <script>
+        function showDiv(divId) {
+            /*alert(divId);*/
+            if (divId == "Realtime") {
+                document.getElementById("Interval").classList.add('hide');
+                document.getElementById("Realtime").classList.remove('hide');
+            } else if (divId == "Interval") {
+                document.getElementById("Realtime").classList.add('hide');
+                document.getElementById("Interval").classList.remove('hide');
+            }
+        }
+        document.getElementById('Realtime').classList.remove('hide');
+
+        document.addEventListener("DOMContentLoaded", function() {
+            Highcharts.setOptions({
+                global: {
+                    timezoneOffset: new Date().getTimezoneOffset()
+                }
+            });
+            const intervalChart = Highcharts.chart('intervalChartContainer', {
+                title: {
+                    text: 'Sensor Data (Selected Interval)'
+                },
+                xAxis: {
+                    type: 'datetime',
+                    dateTimeLabelFormats: {
+                        day: '%Y-%m-%d',
+                        week: '%Y-%m-%d',
+                        month: '%Y-%m',
+                        year: '%Y'
+                    }
+                },
+                series: [{
+                    name: 'Temperature',
+                    data: []
+                }, {
+                    name: 'Humidity',
+                    data: []
+                }]
+            });
+
+            const realtimeChart = Highcharts.chart('realtimeChartContainer', {
+                title: {
+                    text: 'Sensor Data (Real-time)'
+                },
+                xAxis: {
+                    type: 'datetime',
+                    dateTimeLabelFormats: {
+                        day: '%Y-%m-%d',
+                        week: '%Y-%m-%d',
+                        month: '%Y-%m',
+                        year: '%Y'
+                    }
+                },
+                series: [{
+                    name: 'Temperature',
+                    data: []
+                }, {
+                    name: 'Humidity',
+                    data: []
+                }]
+            });
+
+            let startDate, endDate;
+
+            function fetchIntervalDataAndUpdateChart() {
+                let url = '/data';
+                if (startDate && endDate) {
+                    url += `?start=${startDate}&end=${endDate}`;
+                }
+
+                fetch(url)
+                    .then(response => response.json())
+                    .then(data => {
+                        const seriesDataTemperature = data.map(entry => [new Date(entry[0]).getTime(), entry[1]]);
+                        const seriesDataHumidity = data.map(entry => [new Date(entry[0]).getTime(), entry[2]]);
+
+                        intervalChart.series[0].setData(seriesDataTemperature);
+                        intervalChart.series[1].setData(seriesDataHumidity);
+                    })
+                    .catch(error => console.error('Error fetching data:', error));
+            }
+
+            function fetchRealtimeDataAndUpdateChart() {
+                fetch('/data')
+                    .then(response => response.json())
+                    .then(data => {
+                        const latestData = data.slice(-10);
+                        const seriesDataTemperature = latestData.map(entry => [new Date(entry[0]).getTime(), entry[1]]);
+                        const seriesDataHumidity = latestData.map(entry => [new Date(entry[0]).getTime(), entry[2]]);
+
+                        realtimeChart.series[0].setData(seriesDataTemperature);
+                        realtimeChart.series[1].setData(seriesDataHumidity);
+                    })
+                    .catch(error => console.error('Error fetching data:', error));
+            }
+
+            // Initial data fetch
+            fetchIntervalDataAndUpdateChart();
+            fetchRealtimeDataAndUpdateChart();
+
+            // Fetch and update real-time data every 3 seconds (3000 milliseconds)
+            setInterval(fetchRealtimeDataAndUpdateChart, 3000);
+
+            function fetchTimeRangesAndUpdateSelector() {
+                fetch('/time_ranges')
+                    .then(response => response.json())
+                    .then(timeRanges => {
+                        const selector = document.getElementById('timeRangeSelector');
+                        selector.innerHTML = ''; // 清空下拉選單
+                        timeRanges.forEach(range => {
+                            const option = document.createElement('option');
+                            option.value = `${range.start},${range.end}`;
+                            option.textContent = `${range.start} - ${range.end}`;
+                            selector.appendChild(option);
+                        });
+
+                        // 默認選擇第一個區間
+                        if (timeRanges.length > 0) {
+                            const firstRange = timeRanges[0];
+                            startDate = firstRange.start;
+                            endDate = firstRange.end;
+                        }
+                    })
+                    .catch(error => console.error('Error fetching time ranges:', error));
+            }
+
+            // Initial time range fetch
+            fetchTimeRangesAndUpdateSelector();
+
+            // Fetch and update time ranges every 3 seconds (3000 milliseconds)
+            setInterval(fetchTimeRangesAndUpdateSelector, 3000);
+
+            // Update selected time range
+            document.getElementById('timeRangeSelector').addEventListener('change', function() {
+                const [start, end] = this.value.split(',');
+                startDate = start;
+                endDate = end;
+                fetchIntervalDataAndUpdateChart(); // 在選擇時間區間後立即更新圖表
+            });
+
+            // Update chart on button click
+            document.getElementById('updateChart').addEventListener('click', fetchIntervalDataAndUpdateChart);
+        });
+    </script>
+</body>
+</html>
